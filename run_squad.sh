@@ -1,0 +1,24 @@
+export SQUAD_DIR=/home/ubuntu/SQuAD_data
+python3 -m torch.distributed.launch --nproc_per_node=4 ./examples/question-answering/run_squad.py \
+    --model_type roberta \
+    --model_name_or_path roberta-large \
+    --do_train \
+    --do_eval \
+	--version_2_with_negative \
+    --train_file $SQUAD_DIR/train-v2.0.json \
+    --predict_file $SQUAD_DIR/dev-v2.0.json \
+    --learning_rate 1.5e-5 \
+	--weight_decay 0.01 \
+	--max_grad_norm 0.0 \
+    --num_train_epochs 2 \
+    --warmup_ratio 0.06 \
+    --adam_betas '(0.9, 0.98)' \
+    --adam_epsilon 1e-6 \
+    --max_seq_length 512 \
+    --doc_stride 128 \
+    --output_dir ./examples/models/roberta_finetuned_squad2.0/ \
+    --per_gpu_eval_batch_size=8   \
+    --per_gpu_train_batch_size=2   \
+	--gradient_accumulation_steps=6 \
+    --overwrite_cache \
+    --threads 8 \

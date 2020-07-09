@@ -95,9 +95,16 @@ def train(args, train_dataset, model, tokenizer):
         },
         {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
     ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
+    optimizer = AdamW(optimizer_grouped_parameters,
+                      lr=args.learning_rate,
+                      eps=args.adam_epsilon,
+                      betas=eval(args.adam_betas))
+    if args.warmup_steps is not None:
+        warmup_steps = args.warmup_steps
+    else:
+        warmup_steps = args.warmup_ratio * t_total
     scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total
+        optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total
     )
 
     # Check if saved optimizer or scheduler states exist
@@ -588,6 +595,8 @@ def main():
     )
     parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay if we apply some.")
     parser.add_argument("--adam_epsilon", default=1e-8, type=float, help="Epsilon for Adam optimizer.")
+    parser.add_argument('--adam_betas', default='(0.9, 0.999)', metavar='B',
+                        help='betas for Adam optimizer')
     parser.add_argument("--max_grad_norm", default=1.0, type=float, help="Max gradient norm.")
     parser.add_argument(
         "--num_train_epochs", default=3.0, type=float, help="Total number of training epochs to perform."
@@ -598,7 +607,8 @@ def main():
         type=int,
         help="If > 0: set total number of training steps to perform. Override num_train_epochs.",
     )
-    parser.add_argument("--warmup_steps", default=0, type=int, help="Linear warmup over warmup_steps.")
+    parser.add_argument("--warmup_steps", default=None, type=int, help="Linear warmup over warmup_steps.")
+    parser.add_argument("--warmup_ratio", default=0, type=float, help="Linear warmup over warmup_ratio.")
     parser.add_argument(
         "--n_best_size",
         default=20,
