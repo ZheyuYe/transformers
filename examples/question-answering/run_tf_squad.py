@@ -21,6 +21,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
+import tensorflow as tf
+
 from transformers import (
     AutoConfig,
     AutoTokenizer,
@@ -31,6 +33,12 @@ from transformers import (
     squad_convert_examples_to_features,
 )
 from transformers.data.processors.squad import SquadV1Processor, SquadV2Processor
+from transformers.utils import logging as hf_logging
+
+
+hf_logging.set_verbosity_info()
+hf_logging.enable_default_handler()
+hf_logging.enable_explicit_format()
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +76,7 @@ class DataTrainingArguments:
     data_dir: Optional[str] = field(
         default=None, metadata={"help": "The input data dir. Should contain the .json files for the SQuAD task."}
     )
+    use_tfds: Optional[bool] = field(default=True, metadata={"help": "If TFDS should be used or not."})
     max_seq_length: int = field(
         default=128,
         metadata={
@@ -170,7 +179,7 @@ def main():
         )
 
     # Get datasets
-    if not data_args.data_dir:
+    if data_args.use_tfds:
         if data_args.version_2_with_negative:
             logger.warn("tensorflow_datasets does not handle version 2 of SQuAD. Switch to version 1 automatically")
 
@@ -179,7 +188,7 @@ def main():
         except ImportError:
             raise ImportError("If not data_dir is specified, tensorflow_datasets needs to be installed.")
 
-        tfds_examples = tfds.load("squad")
+        tfds_examples = tfds.load("squad", data_dir=data_args.data_dir)
         train_examples = (
             SquadV1Processor().get_examples_from_dataset(tfds_examples, evaluate=False)
             if training_args.do_train
@@ -209,6 +218,8 @@ def main():
         else None
     )
 
+    train_dataset = train_dataset.apply(tf.data.experimental.assert_cardinality(len(train_examples)))
+
     eval_dataset = (
         squad_convert_examples_to_features(
             examples=eval_examples,
@@ -223,8 +234,15 @@ def main():
         else None
     )
 
+    eval_dataset = eval_dataset.apply(tf.data.experimental.assert_cardinality(len(eval_examples)))
+
     # Initialize our Trainer
-    trainer = TFTrainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset,)
+    trainer = TFTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+    )
 
     # Training
     if training_args.do_train:
